@@ -1,0 +1,973 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Houston Freight Flows | 36A Study Areas</title>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.css">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #10141a;
+      --panel: rgba(20,24,30,.96);
+      --line: rgba(255,255,255,.14);
+      --ink: #f4f4f0;
+      --muted: #aeb7c2;
+      --gold: #fab219;
+      --ships: #3987e5;
+      --port: #d95926;
+      --volume: #a64c28;
+      --cars: #c98500;
+      --north: #35d6d0;
+      --south: #ff8a65;
+      font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-width: 320px;
+      min-height: 100vh;
+      margin: 0;
+      background: radial-gradient(ellipse at 48% -20%, rgba(250,178,25,.1), transparent 54%), var(--bg);
+      color: var(--ink);
+    }
+    button, select { font: inherit; color: inherit; }
+    .app { display: flex; min-height: 100vh; flex-direction: column; }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 15px 22px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(14,18,24,.86);
+    }
+    .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .brand-mark {
+      display: grid;
+      width: 38px;
+      height: 38px;
+      flex: 0 0 auto;
+      place-items: center;
+      border: 1px solid rgba(250,178,25,.48);
+      border-radius: 11px;
+      background: rgba(250,178,25,.1);
+      color: #ffcf62;
+      font-weight: 850;
+      letter-spacing: -.05em;
+    }
+    .brand-name { margin: 0; font-size: .71rem; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
+    .brand-sub { margin: 3px 0 0; color: var(--muted); font-size: .78rem; }
+    .top-tag {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 11px;
+      border: 1px solid rgba(250,178,25,.36);
+      border-radius: 999px;
+      color: #f0d28a;
+      font-size: .68rem;
+      font-weight: 750;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .tag-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 10px rgba(250,178,25,.8); }
+    .layout {
+      display: grid;
+      align-items: start;
+      width: min(1700px, 100%);
+      flex: 1;
+      grid-template-columns: minmax(320px, 370px) minmax(0, 1fr);
+      gap: 15px;
+      margin: 0 auto;
+      padding: 15px;
+    }
+    .side { display: flex; min-width: 0; flex-direction: column; gap: 12px; }
+    .intro-card, .control-card, .note-card, .source-card, .map-shell {
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: var(--panel);
+      box-shadow: 0 12px 40px rgba(0,0,0,.2);
+    }
+    .intro-card { padding: 19px; }
+    .eyebrow { margin: 0 0 8px; color: var(--gold); font-size: .67rem; font-weight: 850; letter-spacing: .15em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(1.7rem, 2.6vw, 2.3rem); letter-spacing: -.05em; line-height: 1.04; }
+    .dek { margin: 11px 0 0; color: #c1c8d0; font-size: .86rem; line-height: 1.52; }
+    .hero-stat { display: flex; align-items: baseline; gap: 10px; margin-top: 15px; }
+    .hero-stat strong { color: #ffcf62; font-size: 2.1rem; line-height: 1; }
+    .hero-stat span { color: #c1c8d0; font-size: .72rem; line-height: 1.4; }
+    .status-box {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      margin-top: 15px;
+      padding: 10px 11px;
+      border: 1px solid rgba(250,178,25,.26);
+      border-radius: 10px;
+      background: rgba(250,178,25,.065);
+      color: #f4dfa9;
+      font-size: .73rem;
+      line-height: 1.45;
+    }
+    .status-box svg { width: 17px; height: 17px; flex: 0 0 auto; margin-top: 1px; }
+    .control-card { padding: 15px; }
+    .section-title { margin: 0 0 11px; color: #dce1e7; font-size: .7rem; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+    .layer-list { display: grid; gap: 4px; }
+    .layer-toggle {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-height: 42px;
+      padding: 7px 8px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      color: #e5e8ec;
+      cursor: pointer;
+      font-size: .78rem;
+    }
+    .layer-toggle:hover { border-color: var(--line); background: rgba(255,255,255,.035); }
+    .layer-toggle input { width: 16px; height: 16px; flex: 0 0 auto; margin: 0; accent-color: var(--gold); }
+    .swatch { width: 22px; height: 4px; flex: 0 0 auto; border-radius: 6px; }
+    .swatch.ships { background: var(--ships); box-shadow: 0 0 7px rgba(57,135,229,.5); }
+    .swatch.port { background: var(--port); }
+    .swatch.volume { background: var(--volume); }
+    .swatch.cars { background: var(--cars); }
+    .swatch.study { background: linear-gradient(90deg,var(--north) 0 50%,var(--south) 50%); }
+    .layer-copy { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+    .layer-copy small { color: var(--muted); font-size: .65rem; line-height: 1.25; }
+    .button-row, .playback-row { display: flex; gap: 8px; margin-top: 11px; }
+    .map-action {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 38px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255,255,255,.045);
+      color: #e5e8ec;
+      cursor: pointer;
+      font-size: .74rem;
+      font-weight: 750;
+      text-decoration: none;
+    }
+    .map-action:hover { border-color: rgba(250,178,25,.5); background: rgba(250,178,25,.1); }
+    .map-action:focus-visible, .layer-toggle:focus-within { outline: 2px solid #ffcf62; outline-offset: 2px; }
+    .button-row .map-action { flex: 1; }
+    .playback-row #animation-toggle { min-width: 82px; }
+    .playback-row select { min-width: 0; flex: 1; padding: 0 9px; border: 1px solid var(--line); border-radius: 8px; background: #202832; font-size: .74rem; }
+    .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+    .note-card, .source-card { padding: 14px 15px; }
+    .note-card p, .source-card p, .source-card li { margin: 0; color: #b9c1cb; font-size: .75rem; line-height: 1.5; }
+    .note-card p + p, .source-card p + p { margin-top: 8px; }
+    .note-card strong, .source-card strong { color: #edf0f3; }
+    .source-card summary { color: #edf0f3; cursor: pointer; font-size: .69rem; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+    .source-card details[open] summary { margin-bottom: 10px; }
+    .source-card ul { display: grid; gap: 5px; margin: 8px 0; padding-left: 18px; }
+    .source-card a, .source-line a { color: #bed8ed; text-underline-offset: 2px; }
+    .map-shell { position: relative; display: flex; height: calc(100vh - 92px); min-height: 630px; overflow: hidden; flex-direction: column; background: #14191f; }
+    .map-head { position: relative; z-index: 2; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 14px 17px 10px; border-bottom: 1px solid rgba(255,255,255,.08); background: rgba(18,23,30,.9); }
+    .map-head h2 { margin: 0; font-size: .97rem; letter-spacing: -.01em; }
+    .map-head p { margin: 4px 0 0; color: var(--muted); font-size: .7rem; }
+    .map-chip { flex: 0 0 auto; padding: 5px 8px; border: 1px solid rgba(250,178,25,.35); border-radius: 7px; color: #eac879; font-size: .6rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+    .map-view { position: relative; min-height: 0; flex: 1; overflow: hidden; background: #15191f; }
+    #map { position: absolute; inset: 0; min-height: 400px; background: #15191f; }
+    .maplibregl-ctrl-group { overflow: hidden; border: 1px solid #4b5865 !important; background: #202832 !important; }
+    .maplibregl-ctrl-group button { filter: invert(.9); }
+    .maplibregl-ctrl-attrib { background: rgba(13,17,22,.8) !important; color: #bac4cd !important; font-size: 10px !important; }
+    .maplibregl-ctrl-attrib a { color: #bed8ed !important; }
+    .map-status { position: absolute; z-index: 6; top: 12px; right: 12px; max-width: min(300px,calc(100% - 24px)); padding: 7px 10px; border: 1px solid rgba(255,255,255,.16); border-radius: 8px; background: rgba(13,17,22,.9); color: #d5dde4; font-size: .68rem; line-height: 1.4; pointer-events: none; }
+    .map-status[data-state="ready"] { display: none; }
+    .map-status[data-state="error"] { border-color: rgba(255,112,95,.65); color: #ffc1b7; }
+    .map-status[data-state="loading"]::before { display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--gold); content: ""; animation: pulse 1s ease-in-out infinite alternate; }
+    @keyframes pulse { to { opacity: .3; } }
+    .map-tooltip { position: absolute; z-index: 7; display: none; max-width: 280px; padding: 8px 10px; border: 1px solid rgba(255,255,255,.2); border-radius: 8px; background: rgba(20,25,32,.96); color: var(--ink); font-size: .7rem; line-height: 1.45; pointer-events: none; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
+    .map-tooltip strong { color: #ffd36a; }
+    .legend { position: absolute; z-index: 4; right: 13px; bottom: 13px; display: grid; gap: 6px; padding: 9px 11px; border: 1px solid rgba(255,255,255,.16); border-radius: 9px; background: rgba(13,17,22,.9); color: #dbe1e6; font-size: .64rem; pointer-events: none; }
+    .legend-row { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+    .legend-line { width: 19px; height: 3px; border-radius: 3px; background: var(--ships); }
+    .legend-line.port { background: var(--port); }
+    .legend-line.volume { background: var(--volume); }
+    .legend-line.cars { background: var(--cars); }
+    .legend-line.north { background: var(--north); }
+    .legend-line.south { background: var(--south); }
+    .inset-shell { position: absolute; z-index: 4; bottom: 13px; left: 13px; width: min(300px,33%); overflow: hidden; border: 1px solid rgba(255,255,255,.2); border-radius: 9px; background: rgba(13,17,22,.93); box-shadow: 0 8px 24px rgba(0,0,0,.3); }
+    .inset-title { padding: 6px 9px 0; color: #d5dde4; font-size: .61rem; font-weight: 750; }
+    #inset-map { height: 135px; background: #15191f; }
+    .map-footnote { position: absolute; right: 13px; bottom: 150px; z-index: 3; max-width: min(350px,45%); padding: 7px 9px; border: 1px solid rgba(255,255,255,.12); border-radius: 8px; background: rgba(13,17,22,.84); color: #d5dde4; font-size: .62rem; line-height: 1.4; pointer-events: none; }
+    .source-line { display: flex; justify-content: space-between; gap: 10px; padding: 9px 13px; border-top: 1px solid rgba(255,255,255,.08); color: #8793a0; font-size: .62rem; line-height: 1.4; }
+    @media (max-width: 1050px) {
+      .layout { grid-template-columns: minmax(285px,330px) minmax(0,1fr); gap: 11px; padding: 11px; }
+      .map-shell { height: calc(100vh - 86px); min-height: 620px; }
+      .map-footnote { bottom: 144px; }
+    }
+    @media (max-width: 760px) {
+      .topbar { padding: 12px 14px; }
+      .layout { grid-template-columns: 1fr; padding: 9px; }
+      .side { display: contents; }
+      .intro-card { order: 0; }
+      .map-shell { height: auto; min-height: unset; order: 1; }
+      .map-view { height: min(75vh,640px); min-height: 450px; flex: none; }
+      .control-card { order: 2; }
+      .note-card { order: 3; }
+      .source-card { order: 4; }
+      #map { min-height: 430px; }
+      .map-head { padding: 11px 12px 8px; }
+      .map-chip { font-size: .56rem; }
+      .inset-shell { width: 142px; bottom: 8px; left: 8px; }
+      #inset-map { height: 88px; }
+      .legend { right: 8px; bottom: 8px; gap: 5px; padding: 7px 8px; font-size: .57rem; }
+      .legend-line { width: 15px; }
+      .map-footnote { display: none; }
+      .source-line { flex-direction: column; }
+    }
+    @media (max-width: 470px) {
+      .brand-sub { font-size: .68rem; }
+      .top-tag { padding: 6px 8px; font-size: .57rem; }
+      .intro-card { padding: 16px; }
+      .map-view { height: min(75vh,560px); min-height: 410px; }
+      #map { min-height: 365px; }
+      .inset-shell { width: 122px; }
+      #inset-map { height: 76px; }
+      .legend { font-size: .53rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+    .embed-mode { width: 100%; height: 100%; min-height: 0; overflow: hidden; }
+    .embed-mode .app { width: 100%; height: 100vh; min-height: 0; overflow: hidden; }
+    .embed-mode .topbar, .embed-mode .intro-card, .embed-mode .note-card,
+    .embed-mode .source-card, .embed-mode .map-head, .embed-mode .source-line { display: none; }
+    .embed-mode .layout { position: relative; display: block; width: 100%; height: 100vh; min-height: 0; padding: 0; }
+    .embed-mode .side { position: absolute; z-index: 8; top: 12px; left: 12px; width: min(310px,calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow: auto; pointer-events: none; }
+    .embed-mode .side > * { pointer-events: auto; }
+    .embed-mode .control-card { border-color: rgba(255,255,255,.22); background: rgba(16,20,26,.93); box-shadow: 0 12px 36px rgba(0,0,0,.4); backdrop-filter: blur(8px); }
+    .embed-mode .map-shell { width: 100%; height: 100vh; min-height: 0; border: 0; border-radius: 0; box-shadow: none; }
+    .embed-mode .map-view { min-height: 0; }
+    .embed-mode #map { min-height: 0; }
+    .embed-mode .map-footnote { bottom: 150px; }
+    @media (max-width: 760px) {
+      .embed-mode .layout { padding: 0; }
+      .embed-mode .side { top: 8px; left: 8px; width: min(292px,calc(100vw - 16px)); max-height: calc(100vh - 16px); }
+      .embed-mode .control-card { padding: 10px; }
+      .embed-mode .layer-toggle { min-height: 36px; }
+      .embed-mode .inset-shell { width: 142px; }
+      .embed-mode #inset-map { height: 88px; }
+      .embed-mode .legend { right: 8px; bottom: 8px; }
+      .embed-mode .map-footnote { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">36A</div>
+        <div>
+          <p class="brand-name">TAG Houston · Projects in Motion</p>
+          <p class="brand-sub">FAF5 · AIS · TxDOT · 36A study areas</p>
+        </div>
+      </div>
+      <div class="top-tag"><span class="tag-dot"></span> Houston regional model</div>
+    </header>
+
+    <main class="layout">
+      <aside class="side" aria-label="Map information and controls">
+        <section class="intro-card">
+          <p class="eyebrow">Houston regional freight network</p>
+          <h1>Goods move through a connected region.</h1>
+          <p class="dek">Explore the same modeled Houston freight picture as the SH 225 map, with the separate 36A North and South study areas highlighted for context.</p>
+          <div class="hero-stat"><strong>31%</strong><span>of Houston’s inter-zonal truck tonnage moves through the port complex (imports + exports by water).</span></div>
+          <div class="status-box">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 8v5m0 3h.01M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3l-7.5-13.1a2 2 0 0 0-3.4 0Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span><strong>Not a 36A forecast.</strong> The 31% statistic and animated freight flows describe the Houston region. They do not measure truck tonnage on a 36A alternative or assign freight to the study area.</span>
+          </div>
+        </section>
+
+        <section class="control-card" aria-labelledby="layer-heading">
+          <h2 class="section-title" id="layer-heading">Map layers</h2>
+          <div class="layer-list">
+            <label class="layer-toggle">
+              <input type="checkbox" id="toggle-ships" checked>
+              <span class="swatch ships" aria-hidden="true"></span>
+              <span class="layer-copy">Ships arriving<small>1,868 AIS tracks · Apr–Jun 2025</small></span>
+            </label>
+            <label class="layer-toggle">
+              <input type="checkbox" id="toggle-port-trucks" checked>
+              <span class="swatch port" aria-hidden="true"></span>
+              <span class="layer-copy">Port freight by truck<small>Modeled import/export flows · ~76M tons/year</small></span>
+            </label>
+            <label class="layer-toggle">
+              <input type="checkbox" id="toggle-volume" checked>
+              <span class="swatch volume" aria-hidden="true"></span>
+              <span class="layer-copy">All highway freight<small>FAF5 total truck tonnage by road</small></span>
+            </label>
+            <label class="layer-toggle">
+              <input type="checkbox" id="toggle-cars" checked>
+              <span class="swatch cars" aria-hidden="true"></span>
+              <span class="layer-copy">Everyday car traffic<small>Typical daily car volumes · TxDOT</small></span>
+            </label>
+            <label class="layer-toggle">
+              <input type="checkbox" id="toggle-study" checked>
+              <span class="swatch study" aria-hidden="true"></span>
+              <span class="layer-copy">36A North + South study areas<small>Approximate traces from TxDOT exhibits</small></span>
+            </label>
+          </div>
+          <div class="button-row">
+            <button class="map-action" type="button" id="focus-us">United States</button>
+            <button class="map-action" type="button" id="focus-36a">36A region</button>
+          </div>
+          <div class="playback-row">
+            <button class="map-action" type="button" id="animation-toggle">Pause</button>
+            <label class="visually-hidden" for="speed">Animation speed</label>
+            <select id="speed" aria-label="Animation speed">
+              <option value="0.25">0.25× speed</option>
+              <option value="0.5" selected>0.5× speed</option>
+              <option value="1">1× speed</option>
+            </select>
+          </div>
+        </section>
+
+        <section class="note-card">
+          <h2 class="section-title">36A study areas</h2>
+          <p><strong>South:</strong> FM 1994 south of Needville to I-10. <strong>North:</strong> I-10 to US 290. The tinted outlines are approximate traces from TxDOT overview exhibits, not official GIS boundaries or selected alternatives.</p>
+          <p>The freight layers are a Houston-region model and traffic context. No 36A-specific freight share or Port Houston-to-36A route is asserted. Animated pulses illustrate movement along modeled routes; they are not live vehicle locations or measured travel speeds.</p>
+        </section>
+
+        <section class="source-card">
+          <details>
+            <summary>Notes &amp; sources</summary>
+            <p><strong>Freight method:</strong> FAF 5.7.1 regional OD and highway assignment; USACE port tonnage scaling; TxDOT Roadway Inventory for ambient traffic and routing weights; NOAA MarineCadastre AIS tracks (Apr–Jun 2025).</p>
+            <ul>
+              <li><a href="https://www.arcgis.com/sharing/rest/content/items/9343414b46794fb8be9867db2d1ccb75/data" target="_blank" rel="noopener noreferrer">FHWA FAF5 highway assignment</a></li>
+              <li><a href="https://services.arcgis.com/KTcxiTD9dsQw4r7Z/arcgis/rest/services/TxDOT_Roadway_Inventory/FeatureServer/0" target="_blank" rel="noopener noreferrer">TxDOT Roadway Inventory</a></li>
+              <li><a href="https://ocmgeodatastor1.blob.core.windows.net/marinecadastre/aistrack/index-aistrack.html" target="_blank" rel="noopener noreferrer">NOAA MarineCadastre AIS tracks</a></li>
+              <li><a href="https://ndc.ops.usace.army.mil/wcsc/webpub/data/year/2023/region/2/location/2031/report/fiveYearCargoReport.json" target="_blank" rel="noopener noreferrer">USACE WCSC Port of Houston tonnage</a></li>
+            </ul>
+            <p><strong>Study area sources:</strong> <a href="https://ftp.txdot.gov/pub/txdot/get-involved/hou/36a/071426-exhibit-boards.pdf" target="_blank" rel="noopener noreferrer">36A North exhibits</a> · <a href="https://ftp.txdot.gov/pub/txdot/get-involved/hou/36a/081326-exhibits.pdf" target="_blank" rel="noopener noreferrer">36A South exhibits</a>. Boundaries are approximate, manually traced from the published maps because GIS boundary files were not supplied.</p>
+            <p>FAF5/port/AIS map data load from the public <a href="https://github.com/bschmitz-builds/houston-freight-flows" target="_blank" rel="noopener noreferrer">Houston freight-map data export</a>. Live tiles and data require an internet connection.</p>
+          </details>
+        </section>
+      </aside>
+
+      <section class="map-shell" aria-label="Houston regional freight flow map with 36A study areas">
+        <div class="map-head">
+          <div>
+            <h2>Houston regional freight flows · 36A study areas highlighted</h2>
+            <p>Port Houston truck routes · regional highway tonnage · everyday traffic · AIS arrivals</p>
+          </div>
+          <span class="map-chip">TxDOT study extents</span>
+        </div>
+        <div class="map-view">
+          <div id="map" role="application" aria-label="Interactive Houston freight-flow map with 36A North and South study areas highlighted"></div>
+          <div class="map-status" id="map-status" data-state="loading" role="status" aria-live="polite">Loading basemap and freight-flow data…</div>
+          <div class="map-tooltip" id="map-tooltip" role="status"></div>
+          <div class="inset-shell">
+            <div class="inset-title">From Houston to You · U.S. freight network</div>
+            <div id="inset-map" aria-label="National freight network inset"></div>
+          </div>
+          <div class="legend" aria-label="Map legend">
+            <div class="legend-row"><span class="legend-line"></span>AIS ships arriving</div>
+            <div class="legend-row"><span class="legend-line port"></span>Port freight by truck</div>
+            <div class="legend-row"><span class="legend-line volume"></span>All highway freight</div>
+            <div class="legend-row"><span class="legend-line cars"></span>Everyday car traffic</div>
+            <div class="legend-row"><span class="legend-line north"></span>36A North study area</div>
+            <div class="legend-row"><span class="legend-line south"></span>36A South study area</div>
+          </div>
+          <div class="map-footnote">Houston regional flows are not 36A-specific. The 36A outlines show study areas only—not proposed alignments.</div>
+        </div>
+        <footer class="source-line">
+          <span>Data: FAF5.7.1 · USACE WCSC · TxDOT · NOAA MarineCadastre. Basemap: Esri World Dark Gray Canvas.</span>
+          <span>Study-area sources: <a href="https://ftp.txdot.gov/pub/txdot/get-involved/hou/36a/071426-exhibit-boards.pdf" target="_blank" rel="noopener noreferrer">North exhibit</a> · <a href="https://ftp.txdot.gov/pub/txdot/get-involved/hou/36a/081326-exhibits.pdf" target="_blank" rel="noopener noreferrer">South exhibit</a></span>
+        </footer>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/deck.gl@9.0.34/dist.min.js"></script>
+  <script src="https://unpkg.com/@deck.gl/mapbox@9.0.34/dist.min.js"></script>
+  <script src="https://bschmitz-builds.github.io/houston-freight-flows/houston_freight_flows_data.js"></script>
+  <script>
+    (() => {
+      if (new URLSearchParams(location.search).get("embed") === "1") {
+        document.body.classList.add("embed-mode");
+      }
+      const status = document.querySelector("#map-status");
+      const setStatus = (message, state = "ready") => {
+        status.textContent = message;
+        status.dataset.state = state;
+      };
+      if (typeof maplibregl === "undefined" || typeof deck === "undefined" || !deck.MapboxOverlay) {
+        setStatus("Map libraries could not load. Check the internet connection and refresh.", "error");
+        return;
+      }
+      if (typeof DATA === "undefined" || !Array.isArray(DATA.trucks) || !Array.isArray(DATA.ships)) {
+        setStatus("Houston freight data could not load. Check the connection to the public data export and refresh.", "error");
+        return;
+      }
+
+      const northUrl = "https://ftp.txdot.gov/pub/txdot/get-involved/hou/36a/071426-exhibit-boards.pdf";
+      const southUrl = "https://ftp.txdot.gov/pub/txdot/get-involved/hou/36a/081326-exhibits.pdf";
+      const studyAreas = {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: { name: "36A North study area", extent: "I-10 to US 290 · approximately 20–25 miles", color: [53,214,208], source: northUrl },
+            geometry: { type: "Polygon", coordinates: [[
+              [-96.31,30.04],[-96.32,30.05],[-96.33,30.07],[-96.33,30.09],[-96.31,30.11],
+              [-96.27,30.15],[-96.19,30.17],[-96.09,30.18],[-95.98,30.18],
+              [-95.88,30.16],[-95.79,30.13],[-95.72,30.09],[-95.67,30.04],[-95.64,29.98],
+              [-95.63,29.92],[-95.62,29.87],[-95.59,29.83],[-95.56,29.80],[-95.62,29.77],
+              [-95.71,29.76],[-95.80,29.78],[-95.88,29.81],[-95.95,29.85],[-96.01,29.90],
+              [-96.07,29.94],[-96.14,29.98],[-96.21,30.02],[-96.27,30.03],[-96.30,30.03],[-96.31,30.04]
+            ]] }
+          },
+          {
+            type: "Feature",
+            properties: { name: "36A South study area", extent: "FM 1994 south of Needville to I-10", color: [255,138,101], source: southUrl },
+            geometry: { type: "Polygon", coordinates: [[
+              [-96.30,29.86],[-96.12,29.89],[-95.94,29.88],[-95.79,29.87],[-95.70,29.86],
+              [-95.66,29.83],[-95.63,29.78],[-95.61,29.70],[-95.58,29.62],[-95.55,29.54],
+              [-95.54,29.47],[-95.56,29.40],[-95.61,29.34],[-95.69,29.29],[-95.77,29.24],
+              [-95.86,29.21],[-95.94,29.23],[-96.02,29.29],[-96.09,29.36],[-96.15,29.43],
+              [-96.20,29.51],[-96.25,29.59],[-96.28,29.67],[-96.30,29.74],[-96.31,29.81],[-96.30,29.86]
+            ]] }
+          }
+        ]
+      };
+      const studyBounds = [[-96.44,29.17],[-94.55,30.20]];
+      const usBounds = [[-125,24.3],[-66.5,49.6]];
+      const visible = { ships: true, trucks: true, volume: true, cars: true, study: true };
+      const loopLength = Number(DATA.meta?.loop) || 1800;
+      function seededRandom(seed) {
+        return () => {
+          seed |= 0;
+          seed = seed + 0x6D2B79F5 | 0;
+          let value = Math.imul(seed ^ seed >>> 15, 1 | seed);
+          value = value + Math.imul(value ^ value >>> 7, 61 | value) ^ value;
+          return ((value ^ value >>> 14) >>> 0) / 4294967296;
+        };
+      }
+      const random = seededRandom(486);
+      const truckTimeStretch = 1.33;
+      const truckTrips = [];
+      const freightScale = DATA.trucks.reduce((sum, route) => sum + Number(route.kt || 0), 0) / 9000;
+      DATA.trucks.forEach(route => {
+        const tripCount = Math.max(1, Math.min(400, Math.round(Number(route.kt || 0) / freightScale)));
+        const duration = route.t[route.t.length - 1] * truckTimeStretch;
+        for (let index = 0; index < tripCount; index++) {
+          const start = random() * Math.max(1, loopLength - duration);
+          truckTrips.push({
+            ...route,
+            ts: route.t.map(time => time * truckTimeStretch + start)
+          });
+        }
+      });
+      const shipTrips = DATA.ships.map(route => {
+        const duration = route.t[route.t.length - 1] * 1.7;
+        const start = random() * Math.max(1, loopLength - duration);
+        return { ...route, ts: route.t.map(time => time * 1.7 + start) };
+      });
+      const networkLoopLength = 225;
+      function makeRouteTrips(records, durationFactor, seed) {
+        const routeRandom = seededRandom(seed);
+        return records.map(route => {
+          const distances = [0];
+          let distance = 0;
+          for (let index = 1; index < route.p.length; index++) {
+            const [lon1, lat1] = route.p[index - 1];
+            const [lon2, lat2] = route.p[index];
+            const radians = Math.PI / 180;
+            const dLat = (lat2 - lat1) * radians;
+            const dLon = (lon2 - lon1) * radians;
+            const haversine = Math.sin(dLat / 2) ** 2 +
+              Math.cos(lat1 * radians) * Math.cos(lat2 * radians) * Math.sin(dLon / 2) ** 2;
+            distance += 6371 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+            distances.push(distance);
+          }
+          const duration = Math.max(180, Math.min(220, distance * durationFactor));
+          const start = routeRandom() * Math.max(1, networkLoopLength - duration);
+          const denominator = distance || Math.max(route.p.length - 1, 1);
+          const ts = distances.map((value, index) =>
+            start + (distance ? value : index) / denominator * duration);
+          return { ...route, ts };
+        });
+      }
+      const volumeTrips = makeRouteTrips(DATA.volume, 1.8, 734);
+      const ambientTrips = makeRouteTrips(DATA.ambient, 1.8, 981);
+      const insetVolumeTrips = volumeTrips.filter((route, index) => index % 6 === 0);
+      const insetAmbientTrips = ambientTrips.filter((route, index) => index % 6 === 0);
+      let currentTime = 0;
+      let speed = 0.5;
+      let playing = true;
+      let lastFrame = performance.now();
+      let lastDraw = 0;
+      let mainMap;
+      let insetMap;
+      let mainOverlay;
+      let insetOverlay;
+      const tooltip = document.querySelector("#map-tooltip");
+
+      const mapStyle = {
+        version: 8,
+        sources: {
+          esriBase: {
+            type: "raster",
+            tiles: ["https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}"],
+            tileSize: 256,
+            attribution: "Tiles © Esri — Sources: Esri, Garmin, FAO, NOAA, USGS, © OpenStreetMap contributors, and the GIS User Community."
+          },
+          esriLabels: {
+            type: "raster",
+            tiles: ["https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}"],
+            tileSize: 256,
+            attribution: "Highway labels and shields © Esri."
+          }
+        },
+        layers: [
+          { id: "esri-base", type: "raster", source: "esriBase" },
+          { id: "esri-labels", type: "raster", source: "esriLabels" }
+        ]
+      };
+      const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
+      const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      })[character]);
+
+      function showTooltip(info, kind) {
+        if (!info.object) {
+          tooltip.style.display = "none";
+          return;
+        }
+        const item = info.object;
+        let html = "";
+        if (kind === "study") {
+          const feature = item.properties || {};
+          html = `<strong>${escapeHtml(feature.name)}</strong><br>${escapeHtml(feature.extent)}<br><span>Approximate exhibit trace; study area, not an alignment.</span>`;
+        } else if (kind === "truck") {
+          html = `<strong>Port freight by truck</strong><br>${escapeHtml(item.trade)} · ${escapeHtml(item.term)} terminal<br>${escapeHtml(item.dest)}<br>${Number(item.kt).toLocaleString("en-US")} thousand tons/year · modeled route`;
+        } else if (kind === "ship") {
+          html = `<strong>AIS vessel track</strong><br>${escapeHtml(item.vt)} · approximately ${escapeHtml(item.min)} minutes`;
+        } else if (kind === "volume") {
+          html = `<strong>All highway freight</strong><br>FAF5-assigned truck volume; line width is proportional to modeled link volume.`;
+        } else if (kind === "cars") {
+          html = `<strong>Everyday car traffic</strong><br>TxDOT Roadway Inventory car AADT context (total AADT less truck AADT).`;
+        }
+        tooltip.innerHTML = html;
+        tooltip.style.display = "block";
+        tooltip.style.left = `${clamp(info.x + 12, 8, Math.max(8, document.querySelector("#map").clientWidth - 290))}px`;
+        tooltip.style.top = `${clamp(info.y + 12, 8, Math.max(8, document.querySelector("#map").clientHeight - 115))}px`;
+      }
+
+      function buildMainLayers() {
+        const layers = [];
+        if (visible.study) {
+          layers.push(new deck.GeoJsonLayer({
+            id: "36a-study-area-polygons",
+            data: studyAreas,
+            pickable: true,
+            filled: true,
+            stroked: true,
+            getFillColor: feature => [...feature.properties.color, 24],
+            getLineColor: feature => [...feature.properties.color, 255],
+            getLineWidth: 3,
+            lineWidthUnits: "pixels",
+            lineWidthMinPixels: 3,
+            onHover: info => showTooltip(info, "study")
+          }));
+          layers.push(new deck.TextLayer({
+            id: "36a-study-area-labels",
+            data: [
+              { position: [-95.97,30.03], text: "36A NORTH" },
+              { position: [-95.95,29.55], text: "36A SOUTH" }
+            ],
+            getPosition: item => item.position,
+            getText: item => item.text,
+            getSize: 13,
+            sizeUnits: "pixels",
+            getColor: [255,255,255,255],
+            getTextAnchor: "middle",
+            getAlignmentBaseline: "center",
+            fontFamily: "Segoe UI, sans-serif",
+            fontWeight: 800,
+            outlineWidth: 3,
+            outlineColor: [12,16,21,230],
+            fontSettings: { sdf: true },
+            billboard: true
+          }));
+        }
+        if (visible.cars) {
+          layers.push(new deck.PathLayer({
+            id: "ambient-car-traffic",
+            data: DATA.ambient,
+            pickable: true,
+            getPath: item => item.p,
+            getWidth: item => clamp(Math.sqrt(Number(item.v) || 0) * 0.18, 0.5, 3.2),
+            getColor: item => Number(item.v) >= 70.8 ? [201,133,0,145] : [201,133,0,48],
+            widthUnits: "pixels",
+            widthMinPixels: 0.5,
+            widthMaxPixels: 3.2,
+            jointRounded: true,
+            capRounded: true,
+            onHover: info => showTooltip(info, "cars")
+          }));
+          layers.push(new deck.TripsLayer({
+            id: "ambient-car-flow",
+            data: ambientTrips,
+            pickable: true,
+            getPath: item => item.p,
+            getTimestamps: item => item.ts,
+            getColor: [201,133,0,210],
+            getWidth: item => clamp(1 + Math.sqrt(Number(item.v) || 0) * 0.08, 1.2, 3.5),
+            widthUnits: "pixels",
+            widthMinPixels: 1.2,
+            trailLength: 28,
+            currentTime,
+            loopLength: networkLoopLength,
+            fadeTrail: true,
+            capRounded: true,
+            jointRounded: true,
+            onHover: info => showTooltip(info, "cars")
+          }));
+          layers.push(new deck.TripsLayer({
+            id: "ambient-car-flow-head",
+            data: ambientTrips,
+            getPath: item => item.p,
+            getTimestamps: item => item.ts,
+            getColor: [255,200,77,190],
+            getWidth: 1.7,
+            widthUnits: "pixels",
+            widthMinPixels: 1.5,
+            trailLength: 8,
+            currentTime,
+            loopLength: networkLoopLength,
+            fadeTrail: true,
+            capRounded: true,
+            jointRounded: true
+          }));
+        }
+        if (visible.volume) {
+          layers.push(new deck.PathLayer({
+            id: "all-highway-freight",
+            data: DATA.volume,
+            pickable: true,
+            getPath: item => item.p,
+            getWidth: item => clamp(0.45 + Math.sqrt(Number(item.v) || 0) * 0.2, 0.7, 5),
+            getColor: [166,76,40,118],
+            widthUnits: "pixels",
+            widthMinPixels: 0.7,
+            widthMaxPixels: 5,
+            jointRounded: true,
+            capRounded: true,
+            onHover: info => showTooltip(info, "volume")
+          }));
+          layers.push(new deck.TripsLayer({
+            id: "highway-freight-flow",
+            data: volumeTrips,
+            pickable: true,
+            getPath: item => item.p,
+            getTimestamps: item => item.ts,
+            getColor: [166,76,40,205],
+            getWidth: item => clamp(1 + Math.sqrt(Number(item.v) || 0) * 0.1, 1.2, 4),
+            widthUnits: "pixels",
+            widthMinPixels: 1.2,
+            trailLength: 28,
+            currentTime,
+            loopLength: networkLoopLength,
+            fadeTrail: true,
+            capRounded: true,
+            jointRounded: true,
+            onHover: info => showTooltip(info, "volume")
+          }));
+          layers.push(new deck.TripsLayer({
+            id: "highway-freight-flow-head",
+            data: volumeTrips,
+            getPath: item => item.p,
+            getTimestamps: item => item.ts,
+            getColor: [222,119,68,190],
+            getWidth: 1.8,
+            widthUnits: "pixels",
+            widthMinPixels: 1.6,
+            trailLength: 8,
+            currentTime,
+            loopLength: networkLoopLength,
+            fadeTrail: true,
+            capRounded: true,
+            jointRounded: true
+          }));
+        }
+        if (visible.trucks) {
+          layers.push(new deck.PathLayer({
+            id: "port-freight-truck-routes",
+            data: DATA.trucks,
+            getPath: item => item.p,
+            getWidth: 0.8,
+            getColor: [217,89,38,42],
+            widthUnits: "pixels",
+            widthMinPixels: 0.8,
+            jointRounded: true,
+            capRounded: true
+          }));
+          layers.push(new deck.TripsLayer({
+            id: "port-freight-trucks",
+            data: truckTrips,
+            pickable: true,
+            getPath: item => item.p,
+            getTimestamps: item => item.ts,
+            getColor: [217,89,38,230],
+            getWidth: item => clamp(1 + Math.sqrt(Number(item.kt) || 0) * 0.1, 1.2, 5.5),
+            widthUnits: "pixels",
+            widthMinPixels: 1.2,
+            trailLength: 28,
+            currentTime,
+            loopLength,
+            fadeTrail: true,
+            capRounded: true,
+            jointRounded: true,
+            onHover: info => showTooltip(info, "truck")
+          }));
+          layers.push(new deck.TripsLayer({
+            id: "port-freight-truck-flow-head",
+            data: truckTrips,
+            getPath: item => item.p,
+            getTimestamps: item => item.ts,
+            getColor: [255,224,178,245],
+            getWidth: 3.4,
+            widthUnits: "pixels",
+            widthMinPixels: 2.2,
+            trailLength: 7,
+            currentTime,
+            loopLength,
+            fadeTrail: true,
+            capRounded: true,
+            jointRounded: true
+          }));
+        }
+        if (visible.ships) {
+          layers.push(new deck.TripsLayer({
+            id: "ais-ship-arrivals",
+            data: shipTrips,
+            pickable: true,
+            getPath: item => item.p,
+            getTimestamps: item => item.ts,
+            getColor: [57,135,229,235],
+            getWidth: 3,
+            widthUnits: "pixels",
+            widthMinPixels: 2,
+            trailLength: 42,
+            currentTime,
+            loopLength,
+            fadeTrail: true,
+            capRounded: true,
+            jointRounded: true,
+            onHover: info => showTooltip(info, "ship")
+          }));
+          layers.push(new deck.TripsLayer({
+            id: "ais-ship-flow-head",
+            data: shipTrips,
+            getPath: item => item.p,
+            getTimestamps: item => item.ts,
+            getColor: [228,240,255,245],
+            getWidth: 5.5,
+            widthUnits: "pixels",
+            widthMinPixels: 3,
+            trailLength: 11,
+            currentTime,
+            loopLength,
+            fadeTrail: true,
+            capRounded: true,
+            jointRounded: true
+          }));
+        }
+        layers.push(new deck.TextLayer({
+          id: "highway-shields",
+          data: DATA.shields.reg,
+          visible: mainMap && mainMap.getZoom() >= 5,
+          getPosition: item => [item.x,item.y],
+          getText: item => item.k.replace("|"," "),
+          getSize: 10,
+          sizeUnits: "pixels",
+          getColor: [255,255,255,255],
+          getTextAnchor: "middle",
+          getAlignmentBaseline: "center",
+          fontFamily: "Segoe UI, sans-serif",
+          fontWeight: 800,
+          outlineWidth: 3,
+          outlineColor: [10,13,17,240],
+          fontSettings: { sdf: true },
+          billboard: true
+        }));
+        return layers;
+      }
+
+      function buildInsetLayers() {
+        return [
+          new deck.PathLayer({
+            id: "inset-national-highway-freight",
+            data: DATA.volume,
+            getPath: item => item.p,
+            getWidth: item => clamp(0.3 + Math.sqrt(Number(item.v) || 0) * 0.035, 0.35, 1.2),
+            getColor: [190,91,49,150],
+            widthUnits: "pixels",
+            widthMinPixels: 0.35,
+            widthMaxPixels: 1.2
+          }),
+          new deck.TripsLayer({
+            id: "inset-highway-freight-flow",
+            data: insetVolumeTrips,
+            getPath: item => item.p,
+            getTimestamps: item => item.ts,
+            getColor: [217,89,38,190],
+            getWidth: 1.5,
+            widthUnits: "pixels",
+            trailLength: 28,
+            currentTime,
+            loopLength: networkLoopLength,
+            fadeTrail: true,
+            capRounded: true,
+            jointRounded: true
+          }),
+          new deck.TripsLayer({
+            id: "inset-everyday-traffic-flow",
+            data: insetAmbientTrips,
+            getPath: item => item.p,
+            getTimestamps: item => item.ts,
+            getColor: [230,170,50,190],
+            getWidth: 1.2,
+            widthUnits: "pixels",
+            trailLength: 28,
+            currentTime,
+            loopLength: networkLoopLength,
+            fadeTrail: true,
+            capRounded: true,
+            jointRounded: true
+          }),
+          new deck.PathLayer({
+            id: "inset-port-freight-routes",
+            data: DATA.trucks,
+            getPath: item => item.p,
+            getWidth: 0.5,
+            getColor: [217,89,38,58],
+            widthUnits: "pixels",
+            widthMinPixels: 0.5
+          }),
+          new deck.TripsLayer({
+            id: "inset-port-trucks",
+            data: truckTrips,
+            getPath: item => item.p,
+            getTimestamps: item => item.ts,
+            getColor: [238,126,67,210],
+            getWidth: 1.4,
+            widthUnits: "pixels",
+            trailLength: 28,
+            currentTime,
+            loopLength,
+            fadeTrail: true,
+            capRounded: true,
+            jointRounded: true
+          }),
+          new deck.TripsLayer({
+            id: "inset-ships",
+            data: shipTrips,
+            getPath: item => item.p,
+            getTimestamps: item => item.ts,
+            getColor: [57,135,229,210],
+            getWidth: 1.4,
+            widthUnits: "pixels",
+            trailLength: 42,
+            currentTime,
+            loopLength,
+            fadeTrail: true,
+            capRounded: true,
+            jointRounded: true
+          })
+        ];
+      }
+
+      try {
+        mainMap = new maplibregl.Map({
+          container: "map",
+          style: mapStyle,
+          center: [-95.4,29.72],
+          zoom: 7,
+          minZoom: 3,
+          maxZoom: 15,
+          attributionControl: false,
+          renderWorldCopies: false
+        });
+        mainMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+        mainMap.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-right");
+        mainOverlay = new deck.MapboxOverlay({ interleaved: true, layers: [] });
+        mainMap.addControl(mainOverlay);
+        mainMap.on("load", () => {
+          mainMap.fitBounds(studyBounds, { padding: 42, maxZoom: 8.5, duration: 0 });
+          mainOverlay.setProps({ layers: buildMainLayers() });
+          setStatus("Houston freight model loaded · 36A North and South study areas highlighted.", "ready");
+        });
+        mainMap.on("zoomend", () => {
+          if (mainOverlay) mainOverlay.setProps({ layers: buildMainLayers() });
+        });
+
+        insetMap = new maplibregl.Map({
+          container: "inset-map",
+          style: mapStyle,
+          center: [-98,38.3],
+          zoom: 2.7,
+          minZoom: 2.5,
+          maxZoom: 3.6,
+          interactive: false,
+          attributionControl: false,
+          renderWorldCopies: false
+        });
+        insetOverlay = new deck.MapboxOverlay({ interleaved: true, layers: [] });
+        insetMap.addControl(insetOverlay);
+        insetMap.on("load", () => insetOverlay.setProps({ layers: buildInsetLayers() }));
+      } catch (error) {
+        console.error("Could not initialize the 36A freight map.", error);
+        setStatus("The map could not start. Check the browser console and refresh.", "error");
+        return;
+      }
+
+      const refreshLayers = () => {
+        if (mainOverlay) mainOverlay.setProps({ layers: buildMainLayers() });
+        if (insetOverlay) insetOverlay.setProps({ layers: buildInsetLayers() });
+      };
+      [
+        ["toggle-ships","ships"],
+        ["toggle-port-trucks","trucks"],
+        ["toggle-volume","volume"],
+        ["toggle-cars","cars"],
+        ["toggle-study","study"]
+      ].forEach(([id,key]) => {
+        document.querySelector(`#${id}`).addEventListener("change", event => {
+          visible[key] = event.currentTarget.checked;
+          tooltip.style.display = "none";
+          refreshLayers();
+        });
+      });
+      document.querySelector("#focus-us").addEventListener("click", () => mainMap.fitBounds(usBounds, { padding: 35, duration: 900 }));
+      document.querySelector("#focus-36a").addEventListener("click", () => mainMap.fitBounds(studyBounds, { padding: 42, maxZoom: 8.5, duration: 900 }));
+      document.querySelector("#speed").addEventListener("change", event => { speed = Number(event.currentTarget.value); });
+      document.querySelector("#animation-toggle").addEventListener("click", event => {
+        playing = !playing;
+        event.currentTarget.textContent = playing ? "Pause" : "Play";
+      });
+
+      function animate(now) {
+        const delta = Math.min(now - lastFrame, 100);
+        lastFrame = now;
+        if (playing) currentTime = (currentTime + delta * 60 / 1000 * speed) % loopLength;
+        if (playing && now - lastDraw >= 50) {
+          refreshLayers();
+          lastDraw = now;
+        }
+        requestAnimationFrame(animate);
+      }
+      requestAnimationFrame(animate);
+    })();
+  </script>
+</body>
+</html>
