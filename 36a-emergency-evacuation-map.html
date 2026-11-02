@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>36A Emergency Evacuation Routes | Interactive Map</title>
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.css">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #10141a;
+      --panel: rgba(20,24,30,.96);
+      --line: rgba(255,255,255,.14);
+      --ink: #f4f4f0;
+      --muted: #aeb7c2;
+      --gold: #fab219;
+      --route: #ff8061;
+      --study: #35d6d0;
+      font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { min-width: 320px; min-height: 100vh; margin: 0; background: var(--bg); color: var(--ink); }
+    button { font: inherit; color: inherit; }
+    .app { display: flex; min-height: 100vh; flex-direction: column; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 20px; border-bottom: 1px solid var(--line); background: #0d1117; }
+    .brand { display: flex; align-items: center; gap: 11px; }
+    .brand-mark { display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid rgba(250,178,25,.5); border-radius: 10px; background: rgba(250,178,25,.1); color: #ffcf62; font-weight: 850; letter-spacing: -.05em; }
+    .brand-name { margin: 0; font-size: .7rem; font-weight: 850; letter-spacing: .13em; text-transform: uppercase; }
+    .brand-sub { margin: 3px 0 0; color: var(--muted); font-size: .77rem; }
+    .tag { padding: 7px 10px; border: 1px solid rgba(250,178,25,.35); border-radius: 999px; color: #f0d28a; font-size: .65rem; font-weight: 750; letter-spacing: .07em; text-transform: uppercase; }
+    .layout { display: grid; width: min(1700px,100%); flex: 1; grid-template-columns: minmax(285px,350px) minmax(0,1fr); gap: 13px; margin: 0 auto; padding: 13px; }
+    .side { display: flex; min-width: 0; flex-direction: column; gap: 11px; }
+    .card,.map-shell { border: 1px solid var(--line); border-radius: 13px; background: var(--panel); box-shadow: 0 12px 40px rgba(0,0,0,.2); }
+    .card { padding: 15px; }
+    .eyebrow { margin: 0 0 7px; color: var(--gold); font-size: .64rem; font-weight: 850; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(1.5rem,2.5vw,2rem); letter-spacing: -.045em; line-height: 1.08; }
+    .dek,.card p { color: #c1c8d0; font-size: .78rem; line-height: 1.5; }
+    .dek { margin: 10px 0 0; }
+    .section-title { margin: 0 0 10px; color: #dce1e7; font-size: .67rem; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+    .layer-list { display: grid; gap: 4px; }
+    .layer { display: flex; min-height: 40px; align-items: center; gap: 9px; padding: 7px; border: 1px solid transparent; border-radius: 8px; cursor: pointer; font-size: .75rem; }
+    .layer:hover { border-color: var(--line); background: rgba(255,255,255,.035); }
+    .layer input { width: 16px; height: 16px; margin: 0; accent-color: var(--gold); }
+    .swatch { width: 22px; height: 4px; flex: 0 0 auto; border-radius: 5px; background: var(--route); }
+    .swatch.study { height: 10px; border: 2px solid var(--study); background: rgba(53,214,208,.16); }
+    .map-action { display: inline-flex; min-height: 36px; align-items: center; justify-content: center; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,.045); color: #e5e8ec; cursor: pointer; font-size: .71rem; font-weight: 750; text-decoration: none; }
+    .map-action:hover { border-color: rgba(250,178,25,.5); background: rgba(250,178,25,.1); }
+    .map-action:disabled { cursor: not-allowed; opacity: .5; }
+    .button-row { display: flex; gap: 7px; margin-top: 10px; }
+    .button-row .map-action { flex: 1; }
+    .storm-info { display: flex; align-items: center; gap: 9px; margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--line); color: #d9e1e8; font-size: .72rem; line-height: 1.45; }
+    .storm-live { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: #ff8061; box-shadow: 0 0 0 4px rgba(255,128,97,.15); animation: live-pulse 1.8s ease-in-out infinite; }
+    .storm-legend { margin: 9px 0 0; color: #c1c8d0; font-size: .68rem; line-height: 1.65; }
+    .storm-legend strong { color: #f1f3f5; }
+    .storm-key { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px 10px; margin-top: 9px; }
+    .storm-key-item { display: flex; min-width: 0; align-items: center; gap: 6px; color: #d3dae2; font-size: .65rem; line-height: 1.25; }
+    .storm-key-color { width: 9px; height: 9px; flex: 0 0 auto; border: 1px solid rgba(255,255,255,.75); border-radius: 50%; background: var(--storm-color); box-shadow: 0 0 7px var(--storm-color); }
+    .storm-map-label { padding: 3px 5px; border: 1px solid currentColor; border-radius: 3px; background: rgba(13,17,22,.88); font: 700 10px/1.2 "Segoe UI",system-ui,sans-serif; letter-spacing: .03em; white-space: nowrap; pointer-events: none; }
+    .storm-dot { position: relative; display: grid; width: 64px; height: 64px; place-items: center; overflow: visible; border: 0; border-radius: 50%; background: radial-gradient(circle,rgba(224,239,250,.16),rgba(180,202,220,.06) 43%,transparent 72%); box-shadow: none; pointer-events: none; }
+    .storm-dot svg { width: 62px; height: 62px; overflow: visible; filter: drop-shadow(0 0 4px rgba(235,246,255,.86)) drop-shadow(0 0 9px currentColor); }
+    .storm-swirl { transform-box: fill-box; transform-origin: center; animation: hurricane-spin .8s linear infinite; }
+    .storm-eye { position: absolute; z-index: 1; width: 11px; height: 11px; border: 1px solid rgba(255,255,255,.95); border-radius: 50%; background: #05080c; box-shadow: 0 0 7px rgba(255,255,255,.9); }
+    .storm-center { padding: 3px 5px; border: 1px solid #35d6d0; border-radius: 3px; background: rgba(13,17,22,.9); color: #a9fffb; font: 750 9px/1.2 "Segoe UI",system-ui,sans-serif; letter-spacing: .06em; white-space: nowrap; pointer-events: none; }
+    @keyframes live-pulse { 50% { opacity: .45; box-shadow: 0 0 0 7px rgba(255,128,97,0); } }
+    @keyframes hurricane-spin { to { transform: rotate(360deg); } }
+    .notice { padding: 11px 12px; border: 1px solid rgba(250,178,25,.28); border-radius: 9px; background: rgba(250,178,25,.065); color: #f4dfa9; font-size: .7rem; line-height: 1.45; }
+    .notice strong { color: #fff0c5; }
+    .source { margin: 8px 0 0; color: #8793a0; font-size: .65rem; line-height: 1.45; }
+    .source a { color: #bed8ed; }
+    .map-shell { position: relative; min-height: 600px; overflow: hidden; background: #14191f; }
+    #map { position: absolute; inset: 0; }
+    .map-head { position: absolute; z-index: 2; top: 12px; left: 12px; max-width: calc(100% - 24px); padding: 10px 12px; border: 1px solid rgba(255,255,255,.16); border-radius: 9px; background: rgba(13,17,22,.9); pointer-events: none; }
+    .map-head strong { font-size: .8rem; }
+    .map-head span { display: block; margin-top: 3px; color: var(--muted); font-size: .65rem; }
+    .map-status { position: absolute; z-index: 3; right: 12px; top: 12px; max-width: min(300px,calc(100% - 24px)); padding: 8px 10px; border: 1px solid rgba(255,255,255,.18); border-radius: 8px; background: rgba(13,17,22,.92); color: #d5dde4; font-size: .68rem; }
+    .map-status[data-state="ready"] { display: none; }
+    .map-status[data-state="error"] { border-color: rgba(255,112,95,.65); color: #ffc1b7; }
+    .maplibregl-ctrl-group { overflow: hidden; border: 1px solid #4b5865 !important; background: #202832 !important; }
+    .maplibregl-ctrl-group button { filter: invert(.9); }
+    .maplibregl-ctrl-attrib { background: rgba(13,17,22,.8) !important; color: #bac4cd !important; font-size: 10px !important; }
+    .maplibregl-ctrl-attrib a { color: #bed8ed !important; }
+    .maplibregl-popup-content { border: 1px solid rgba(255,255,255,.15); border-radius: 9px; background: #171d25; color: var(--ink); font: 13px/1.45 "Segoe UI",system-ui,sans-serif; }
+    .maplibregl-popup-close-button { color: var(--ink); }
+    @media(max-width:800px) {
+      .topbar { padding: 11px 13px; }
+      .layout { grid-template-columns: 1fr; padding: 9px; }
+      .side { display: contents; }
+      .intro { order: 0; }
+      .map-shell { min-height: 58vh; order: 1; }
+      .controls { order: 2; }
+      .notes { order: 3; }
+    }
+    @media(max-width:460px) { .tag { padding: 6px 8px; font-size: .55rem; } .brand-sub { font-size: .68rem; } .map-shell { min-height: 55vh; } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">36A</div>
+        <div>
+          <p class="brand-name">TAG Houston · Projects in Motion</p>
+          <p class="brand-sub">Emergency evacuation routes · South study area</p>
+        </div>
+      </div>
+      <div class="tag">Interactive map concept</div>
+    </header>
+    <main class="layout">
+      <aside class="side" aria-label="Map information and controls">
+        <section class="card intro">
+          <p class="eyebrow">36A South Project</p>
+          <h1>When minutes matter</h1>
+          <p class="dek">Major highways corresponding to the evacuation diagram are highlighted on their mapped roadway alignments. Animated markers travel along the road network.</p>
+        </section>
+        <section class="card controls" aria-labelledby="layers-heading">
+          <h2 class="section-title" id="layers-heading">Map layers</h2>
+          <div class="layer-list">
+            <label class="layer"><input type="checkbox" data-layer="evacuation" checked><span class="swatch"></span><span>Evacuation-diagram highways</span></label>
+            <label class="layer"><input type="checkbox" data-layer="study" checked><span class="swatch study"></span><span>36A South study-area diagram outline</span></label>
+          </div>
+          <div class="button-row">
+            <button class="map-action" id="full-extent" type="button">Regional extent</button>
+            <button class="map-action" id="study-extent" type="button">Focus on 36A</button>
+          </div>
+          <div class="storm-info"><span class="storm-live" aria-hidden="true"></span><span><strong>Hurricane proximity</strong><br>Historical Gulf storms · looping animation</span></div>
+          <div class="storm-key" aria-label="Historical hurricane track color key">
+            <div class="storm-key-item"><span class="storm-key-color" style="--storm-color:#62c9ef"></span><span>Rita · 2005</span></div>
+            <div class="storm-key-item"><span class="storm-key-color" style="--storm-color:#fab219"></span><span>Humberto · 2007</span></div>
+            <div class="storm-key-item"><span class="storm-key-color" style="--storm-color:#ff8061"></span><span>Ike · 2008</span></div>
+            <div class="storm-key-item"><span class="storm-key-color" style="--storm-color:#cf81ff"></span><span>Harvey · 2017</span></div>
+          </div>
+          <p class="storm-legend"><strong>Distance rings:</strong> 50 · 100 · 150 · 200 mi from the approximate study-area center.</p>
+        </section>
+        <section class="card notes">
+          <h2 class="section-title">How to read this map</h2>
+          <div class="notice"><strong>Planning context only.</strong> This concept is not a live traffic map or an official evacuation instruction. Follow local emergency-management guidance during an evacuation.</div>
+          <p class="source">Highlighted highways use OpenStreetMap road geometry and route references in the CARTO vector basemap. Confirm official evacuation-route designations with TxDOT before publication. Traffic dots are a faster illustrative network animation—not observed traffic, evacuation direction, or a traffic count.</p>
+          <p class="source">Colored moving indicators represent selected historical Gulf hurricane positions from NOAA/NHC HURDAT2. The looping display is for historical context, not a forecast, live storm, or evacuation alert. Distance rings are approximate and are not evacuation zones.</p>
+          <p class="source">The 36A South study-area outline is approximate, traced from the published diagram; replace it with the project GIS boundary before publication.</p>
+          <p class="source">Source diagram: <a href="https://www.arcgis.com/sharing/rest/content/items/079b3f1c2a624f82a63df09830bfddf7/resources/Ju0xpCm2SR0gtHTQmhyBG.png" target="_blank" rel="noopener">Emergency Evacuation Routes Map</a> · TxDOT project CSJ 0912-00-544, as cited in the diagram.</p>
+          <p class="source">Historical storm tracks: <a href="https://www.nhc.noaa.gov/data/hurdat/hurdat2-1851-2023-051124.txt" target="_blank" rel="noopener">NOAA/NHC HURDAT2 best-track archive</a>. Selected storms: Rita (2005), Humberto (2007), Ike (2008), and Harvey (2017).</p>
+        </section>
+      </aside>
+      <section class="map-shell" aria-label="Interactive evacuation route map">
+        <div id="map" role="application" aria-label="Map of the Houston region showing evacuation routes and 36A South study area"></div>
+        <div class="map-head"><strong>36A South · Houston region</strong><span>Historical hurricane markers, distance rings, and evacuation-diagram highways</span></div>
+        <div class="map-status" data-state="loading" role="status">Loading interactive map…</div>
+      </section>
+    </main>
+  </div>
+  <script src="https://unpkg.com/maplibre-gl@5.6.1/dist/maplibre-gl.js"></script>
+  <script>
+    (() => {
+      const status = document.querySelector(".map-status");
+      if (!window.maplibregl) {
+        status.dataset.state = "error";
+        status.textContent = "Map library did not load. Check your connection and refresh.";
+        return;
+      }
+
+      const routeRefs = [
+        "I 10","I 10;US 90","I 10;TX 71","US 290","US 290;TX 36","US 290;TX 6",
+        "I 45","I 45;US 190","I 69;US 59","I-69;US 59","US 59","TX 6","TX 36",
+        "TX 288","TX 288;TX 332","TX 332","US 90","US 90A","US 90 ALT","TX 99","TX 99 Toll",
+        "TX 71","TX 71;TX 21","TX 35","TX 60","TX 225","BW 8"
+      ];
+      const stormTracks = [
+        {id:"rita",name:"RITA",year:2005,color:"#62c9ef",points:[
+          [24.7,-87.3],[24.8,-87.6],[25.2,-88.3],[25.6,-89.1],[26.0,-89.9],
+          [26.5,-90.7],[27.1,-91.5],[27.8,-92.3],[28.6,-93.0],[29.4,-93.6],
+          [29.7,-93.7],[30.5,-94.1],[31.6,-94.1]
+        ]},
+        {id:"humberto",name:"HUMBERTO",year:2007,color:"#fab219",points:[
+          [27.3,-95.0],[27.8,-95.1],[28.3,-95.0],[28.8,-94.8],[29.5,-94.4],
+          [29.6,-94.3],[30.3,-93.6],[31.0,-92.9],[31.7,-92.3]
+        ]},
+        {id:"ike",name:"IKE",year:2008,color:"#ff8061",points:[
+          [25.1,-87.1],[25.5,-88.0],[25.8,-88.9],[26.1,-90.0],[26.4,-91.1],
+          [26.9,-92.2],[27.5,-93.2],[28.3,-94.0],[29.1,-94.6],[29.3,-94.7],
+          [30.3,-95.2],[31.7,-95.3]
+        ]},
+        {id:"harvey",name:"HARVEY",year:2017,color:"#cf81ff",points:[
+          [24.4,-93.6],[25.0,-94.4],[25.6,-95.1],[26.3,-95.8],[27.1,-96.3],
+          [27.8,-96.8],[28.0,-96.9],[28.2,-97.1],[28.7,-97.3],[29.0,-97.5],
+          [29.2,-97.4],[29.3,-97.6],[29.1,-97.5],[29.0,-97.2],[28.8,-96.8],
+          [28.6,-96.5],[28.5,-96.2],[28.4,-95.9],[28.2,-95.4],[28.1,-95.0],
+          [28.2,-94.6],[28.5,-94.2],[28.9,-93.8],[29.4,-93.6],[29.8,-93.5],
+          [30.1,-93.4],[30.6,-93.1]
+        ]}
+      ].map(track=>({
+        ...track,
+        coordinates:track.points.map(([lat,lon])=>[lon,lat])
+      }));
+      const studyArea = {
+        type: "Feature",
+        properties: { name: "36A South Project Study Area", description: "Approximate study-area outline traced from the published 36A evacuation diagram." },
+        geometry: { type: "Polygon", coordinates: [[
+          [-96.24,29.77],[-96.08,29.78],[-95.91,29.78],[-95.77,29.79],[-95.63,29.78],
+          [-95.62,29.68],[-95.64,29.58],[-95.59,29.51],[-95.62,29.39],[-95.71,29.27],
+          [-95.82,29.20],[-95.94,29.19],[-96.04,29.27],[-96.11,29.38],[-96.16,29.49],
+          [-96.20,29.59],[-96.25,29.68],[-96.24,29.77]
+        ]] }
+      };
+      const fullBounds = [[-96.6,28.5],[-93.7,30.9]];
+      const stormCenter = [-95.84,29.52];
+      const studyBounds = [[-96.32,29.12],[-95.45,29.92]];
+      const regionalPadding = {top:35,right:45,bottom:35,left:35};
+      const map = new maplibregl.Map({
+        container: "map",
+        style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+        center: [-95.15,29.7],
+        zoom: 7.8,
+        minZoom: 4.5,
+        maxZoom: 13,
+        attributionControl: false
+      });
+      map.addControl(new maplibregl.NavigationControl({showCompass:false}),"top-right");
+      map.addControl(new maplibregl.AttributionControl({compact:true}),"bottom-right");
+
+      map.on("error", event => {
+        if (event?.error) {
+          status.dataset.state = "error";
+          status.textContent = "Some map content failed to load. Check your connection or reload.";
+        }
+      });
+      let initialized = false;
+      const initializeLayers = () => {
+        if (initialized) return;
+        initialized = true;
+        map.addSource("study", {type:"geojson",data:studyArea});
+        map.addLayer({id:"study-fill",type:"fill",source:"study",paint:{"fill-color":"#35d6d0","fill-opacity":0.13}});
+        map.addLayer({id:"study-outline",type:"line",source:"study",paint:{"line-color":"#35d6d0","line-width":3,"line-opacity":0.95}});
+        const routeFilter = ["all",
+          ["in",["get","kind_detail"],["literal",["motorway","trunk","primary"]]],
+          ["in",["get","ref"],["literal",routeRefs]]
+        ];
+        const firstSymbolLayer = map.getStyle().layers.find(layer => layer.type === "symbol")?.id;
+        map.addLayer({
+          id:"evacuation-routes",
+          type:"line",
+          source:"protomaps",
+          "source-layer":"roads",
+          minzoom:4.5,
+          filter:routeFilter,
+          layout:{"line-cap":"round","line-join":"round"},
+          paint:{"line-color":"#ff8061","line-width":["interpolate",["linear"],["zoom"],5,2.2,9,4.5,13,6],"line-opacity":0.98}
+        },firstSymbolLayer);
+        map.addSource("traffic-flow",{type:"geojson",data:{type:"FeatureCollection",features:[]}});
+        map.addLayer({
+          id:"traffic-flow",
+          type:"circle",
+          source:"traffic-flow",
+          paint:{"circle-radius":3.2,"circle-color":"#fff4c2","circle-stroke-color":"#f3a944","circle-stroke-width":1.2,"circle-opacity":0.98}
+        },firstSymbolLayer);
+        const toRadians = degrees => degrees*Math.PI/180;
+        const toDegrees = radians => radians*180/Math.PI;
+        const makeRangeFeature = miles => {
+          const earthRadiusMiles = 3958.8;
+          const angularRadius = miles/earthRadiusMiles;
+          const centerLat = toRadians(stormCenter[1]);
+          const centerLon = toRadians(stormCenter[0]);
+          const coordinates = [];
+          for(let bearing=0;bearing<=360;bearing+=4) {
+            const angle = toRadians(bearing);
+            const latitude = Math.asin(
+              Math.sin(centerLat)*Math.cos(angularRadius)+
+              Math.cos(centerLat)*Math.sin(angularRadius)*Math.cos(angle)
+            );
+            const longitude = centerLon+Math.atan2(
+              Math.sin(angle)*Math.sin(angularRadius)*Math.cos(centerLat),
+              Math.cos(angularRadius)-Math.sin(centerLat)*Math.sin(latitude)
+            );
+            coordinates.push([toDegrees(longitude),toDegrees(latitude)]);
+          }
+          return {
+            type:"Feature",
+            properties:{miles},
+            geometry:{type:"LineString",coordinates}
+          };
+        };
+        const rangeFeatures = [50,100,150,200].map(makeRangeFeature);
+        map.addSource("storm-ranges",{type:"geojson",data:{type:"FeatureCollection",features:rangeFeatures}});
+        map.addLayer({
+          id:"storm-ranges",
+          type:"line",
+          source:"storm-ranges",
+          layout:{"line-cap":"round","line-join":"round"},
+          paint:{"line-color":"#b7c7d7","line-width":1,"line-opacity":0.34,"line-dasharray":[1.5,2]}
+        },"evacuation-routes");
+        const rangeLabelFeatures = [50,100,150,200].map(miles=>{
+          const feature = rangeFeatures.find(item=>item.properties.miles===miles);
+          return {
+            type:"Feature",
+            properties:{label:`${miles} mi`},
+            geometry:{type:"Point",coordinates:feature.geometry.coordinates[22]}
+          };
+        });
+        map.addSource("storm-range-labels",{type:"geojson",data:{type:"FeatureCollection",features:rangeLabelFeatures}});
+        map.addLayer({
+          id:"storm-range-labels",
+          type:"symbol",
+          source:"storm-range-labels",
+          layout:{"text-field":["get","label"],"text-size":10,"text-anchor":"left","text-offset":[0.35,0],"text-allow-overlap":false},
+          paint:{"text-color":"#d2dde7","text-halo-color":"#10141a","text-halo-width":1.5}
+        });
+        const stormMarkers = stormTracks.map(track=>{
+          const dot = document.createElement("div");
+          dot.className = "storm-dot";
+          dot.style.color = track.color;
+          dot.innerHTML = '<svg viewBox="0 0 32 32" aria-hidden="true"><g class="storm-swirl" fill="none" stroke="#f5f8fb" stroke-linecap="round"><path d="M16 2.5c7.5 0 13.3 6.1 12 13.5-1.2 7.1-8 12.5-15 10.4C6.7 24.5 3.3 18.3 5.8 12.5 8 7.2 14 5.5 18.4 8.1c3.8 2.3 4.5 7 1.7 9.8-2.4 2.4-6.2 2.1-7.6-.5-1-1.8-.2-3.8 1.5-4.5" stroke-width="3" opacity=".98"/><path d="M22.7 5.2c4.1 3.3 5.1 9 2.2 13.4-2.9 4.4-8.3 6.1-12.5 3.6" stroke-width="1.5" opacity=".86"/></g></svg><span class="storm-eye"></span>';
+          dot.setAttribute("role","img");
+          dot.setAttribute("aria-label",`${track.name} ${track.year} historical storm position`);
+          const marker = new maplibregl.Marker({element:dot,anchor:"center"})
+            .setLngLat(track.coordinates[0])
+            .addTo(map);
+          const label = document.createElement("div");
+          label.className = "storm-map-label";
+          label.style.color = track.color;
+          label.textContent = `${track.name} '${String(track.year).slice(-2)}`;
+          new maplibregl.Marker({element:label,anchor:"left",offset:[6,0]})
+            .setLngLat(track.coordinates[track.coordinates.length-1])
+            .addTo(map);
+          return marker;
+        });
+        const centerLabel = document.createElement("div");
+        centerLabel.className = "storm-center";
+        centerLabel.textContent = "36A SOUTH";
+        new maplibregl.Marker({element:centerLabel,anchor:"center"})
+          .setLngLat(stormCenter)
+          .addTo(map);
+        const stormAnimationDuration = 28000;
+        let lastStormFrame = 0;
+        const animateStorms = now => {
+          if(now-lastStormFrame>=65) {
+            lastStormFrame = now;
+            stormTracks.forEach((track,index)=>{
+              const progress = (now/stormAnimationDuration+index*0.23)%1;
+              const scaledIndex = progress*(track.coordinates.length-1);
+              const segmentIndex = Math.floor(scaledIndex);
+              const segmentProgress = scaledIndex-segmentIndex;
+              const start = track.coordinates[segmentIndex];
+              const end = track.coordinates[Math.min(segmentIndex+1,track.coordinates.length-1)];
+              const position = [
+                start[0]+(end[0]-start[0])*segmentProgress,
+                start[1]+(end[1]-start[1])*segmentProgress
+              ];
+              stormMarkers[index].setLngLat(position);
+            });
+          }
+          requestAnimationFrame(animateStorms);
+        };
+        requestAnimationFrame(animateStorms);
+
+        const routePopup = feature => {
+          const route = feature.properties.ref || feature.properties.name || "Major roadway";
+          const coords = feature.geometry.coordinates;
+          const point = feature.geometry.type === "MultiLineString" ? coords[0][Math.floor(coords[0].length/2)] : coords[Math.floor(coords.length/2)];
+          new maplibregl.Popup({closeButton:true,closeOnClick:true})
+            .setLngLat(point)
+            .setHTML(`<strong>${escapeHtml(route)}</strong><br>Roadway geometry from OpenStreetMap. Highlighted as a major route shown in the published evacuation diagram.`)
+            .addTo(map);
+        };
+        map.on("click","evacuation-routes",event => {
+          if(event.features?.[0]) routePopup(event.features[0]);
+        });
+        map.on("mouseenter","evacuation-routes",() => {map.getCanvas().style.cursor="pointer";});
+        map.on("mouseleave","evacuation-routes",() => {map.getCanvas().style.cursor="";});
+
+        let flowPaths = [];
+        let lastFlowFrame = 0;
+        const flowSource = map.getSource("traffic-flow");
+        const refreshFlowPaths = () => {
+          if (!document.querySelector('[data-layer="evacuation"]').checked) return;
+          const features = map.queryRenderedFeatures({layers:["evacuation-routes"]});
+          const seen = new Set();
+          flowPaths = [];
+          for (const feature of features) {
+            const geometry = feature.geometry;
+            if (!geometry) continue;
+            const lines = geometry.type === "MultiLineString" ? geometry.coordinates : [geometry.coordinates];
+            for (const coordinates of lines) {
+              if (!coordinates || coordinates.length < 2) continue;
+              const first = coordinates[0];
+              const last = coordinates[coordinates.length-1];
+              const key = `${feature.properties.ref}:${first[0].toFixed(4)},${first[1].toFixed(4)}:${last[0].toFixed(4)},${last[1].toFixed(4)}`;
+              if (seen.has(key)) continue;
+              seen.add(key);
+              const lengths = [0];
+              for (let i=1;i<coordinates.length;i++) lengths.push(lengths[i-1]+segmentLength(coordinates[i-1],coordinates[i]));
+              if (lengths[lengths.length-1] > 2500) flowPaths.push({coordinates,lengths,length:lengths[lengths.length-1],offset:flowPaths.length*0.618%1});
+            }
+          }
+        };
+        const segmentLength = (a,b) => {
+          const rad = Math.PI/180;
+          const lat1 = a[1]*rad;
+          const lat2 = b[1]*rad;
+          const dLat = lat2-lat1;
+          const dLon = (b[0]-a[0])*rad;
+          const h = Math.sin(dLat/2)**2+Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+          return 6371000*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h));
+        };
+        const pointAt = (path,progress) => {
+          const target = progress*path.length;
+          let index = 1;
+          while(index<path.lengths.length-1 && path.lengths[index]<target) index++;
+          const start = path.lengths[index-1];
+          const span = path.lengths[index]-start || 1;
+          const fraction = Math.max(0,Math.min(1,(target-start)/span));
+          const a = path.coordinates[index-1];
+          const b = path.coordinates[index];
+          return [a[0]+(b[0]-a[0])*fraction,a[1]+(b[1]-a[1])*fraction];
+        };
+        const animateFlow = now => {
+          if (now-lastFlowFrame>65 && flowPaths.length && document.querySelector('[data-layer="evacuation"]').checked) {
+            lastFlowFrame=now;
+            const elapsed = now/1000*0.05;
+            const points = [];
+            for (const path of flowPaths) {
+              const progress = (elapsed+path.offset)%1;
+              points.push({type:"Feature",properties:{},geometry:{type:"Point",coordinates:pointAt(path,progress)}});
+            }
+            flowSource.setData({type:"FeatureCollection",features:points});
+          }
+          requestAnimationFrame(animateFlow);
+        };
+        map.on("moveend",refreshFlowPaths);
+        map.on("idle",refreshFlowPaths);
+        setTimeout(refreshFlowPaths,1500);
+        requestAnimationFrame(animateFlow);
+
+        document.querySelectorAll("[data-layer]").forEach(input => {
+          input.addEventListener("change", () => {
+            const visibility = input.checked ? "visible" : "none";
+            const idsByLayer = {evacuation:["evacuation-routes","traffic-flow"],study:["study-fill","study-outline"]};
+            const ids = idsByLayer[input.dataset.layer];
+            ids.forEach(id => map.setLayoutProperty(id,"visibility",visibility));
+            if (input.dataset.layer === "evacuation" && input.checked) setTimeout(refreshFlowPaths,250);
+          });
+        });
+        const fitRegionalExtent = duration => {
+          map.resize();
+          map.fitBounds(fullBounds,{padding:regionalPadding,duration});
+        };
+        document.getElementById("full-extent").addEventListener("click",() => fitRegionalExtent(700));
+        document.getElementById("study-extent").addEventListener("click",() => map.fitBounds(studyBounds,{padding:55,duration:700}));
+        setTimeout(()=>fitRegionalExtent(0),300);
+        status.dataset.state="ready";
+      };
+      map.on("style.load", initializeLayers);
+
+      function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
+      }
+    })();
+  </script>
+</body>
+</html>
